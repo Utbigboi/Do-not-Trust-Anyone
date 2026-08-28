@@ -30,6 +30,8 @@ namespace CaseDesk
         Vector3 grabOffset, dragTarget;
         Vector2 downPos;
         bool isDrag, pressedWorkspace;
+        IClickable pressedClickable;
+        ClickableHighlight hlClickable;
         float targetHeight;
 
         void Awake() { if (!cam) cam = Camera.main; }
@@ -38,14 +40,15 @@ namespace CaseDesk
 
         void Update()
         {
-            if (inspector && inspector.IsFocused) { SetHighlight(null); return; }
+            if (inspector && inspector.IsFocused) { SetHighlight(null); SetClickableHighlight(null); return; }
+            if (CallController.I != null && CallController.I.IsOpen) { SetHighlight(null); SetClickableHighlight(null); return; }
 
             Ray ray = cam.ScreenPointToRay(Input.mousePosition);
 
             if (Input.GetMouseButtonDown(0))
             {
                 downPos = Input.mousePosition;
-                isDrag = false; pressedWorkspace = false; dragging = null; dragRb = null;
+                isDrag = false; pressedWorkspace = false; dragging = null; dragRb = null; pressedClickable = null;
 
                 if (Physics.Raycast(ray, out RaycastHit hit, rayLength))
                 {
@@ -58,10 +61,11 @@ namespace CaseDesk
                         plane = new Plane(Vector3.up, new Vector3(0f, targetHeight, 0f));
                         grabOffset = plane.Raycast(ray, out float d) ? ev.transform.position - ray.GetPoint(d) : Vector3.zero;
                         grabOffset.y = 0f;
-                        // NOTE: don't remove from workspace / unfreeze here — wait until a real drag starts,
+                        // NOTE: don't remove from workspace / unfreeze here â€” wait until a real drag starts,
                         // so a plain click on a workspace piece still focuses it.
                     }
                     else if (hit.collider.GetComponentInParent<Workspace>() != null) pressedWorkspace = true;
+                    else { var clk = hit.collider.GetComponentInParent<IClickable>(); if (clk != null) pressedClickable = clk; }
                 }
             }
 
@@ -93,6 +97,7 @@ namespace CaseDesk
                 {
                     if (dragging != null && dragging.OnWorkspace) { inspector?.Focus(dragging); focused = true; }
                     else if (pressedWorkspace && workspace && workspace.Current != null) { inspector?.Focus(workspace.Current); focused = true; }
+                    else if (pressedClickable != null) pressedClickable.OnClick();
                 }
                 else if (dragging != null)
                 {
@@ -109,19 +114,24 @@ namespace CaseDesk
                 // safety: any still-free body gets gravity back
                 if (!focused && dragRb != null && !dragRb.isKinematic) dragRb.useGravity = true;
 
-                dragging = null; dragRb = null; isDrag = false; pressedWorkspace = false;
+                dragging = null; dragRb = null; isDrag = false; pressedWorkspace = false; pressedClickable = null;
             }
 
             EvidenceObject desired;
+            ClickableHighlight desiredClickable = null;
             if (dragging != null) desired = dragging;
             else if (!Input.GetMouseButton(0))
             {
                 desired = null;
                 if (Physics.Raycast(ray, out RaycastHit h, rayLength))
+                {
                     desired = h.collider.GetComponentInParent<EvidenceObject>();
+                    if (desired == null) desiredClickable = h.collider.GetComponentInParent<ClickableHighlight>();
+                }
             }
             else desired = highlighted;
             SetHighlight(desired);
+            SetClickableHighlight(desiredClickable);
         }
 
         void FixedUpdate()
@@ -140,6 +150,14 @@ namespace CaseDesk
             if (highlighted) highlighted.SetHighlight(false);
             highlighted = e;
             if (highlighted) highlighted.SetHighlight(true);
+        }
+
+        void SetClickableHighlight(ClickableHighlight c)
+        {
+            if (hlClickable == c) return;
+            if (hlClickable) hlClickable.SetHighlight(false);
+            hlClickable = c;
+            if (hlClickable) hlClickable.SetHighlight(true);
         }
     }
 }

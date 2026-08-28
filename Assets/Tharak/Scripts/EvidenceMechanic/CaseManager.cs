@@ -17,6 +17,10 @@ namespace CaseDesk
         public int susOrg = 20;
         public int credibility = 50;
 
+        [Header("Reset values (used by resetMetersEachRound)")]
+        public int startSuspicion = 20;
+        public int startCredibility = 50;
+
         [Header("Tuning — tipping")]
         public int tipWeight = 5;        // implicated party's suspicion += strength * tipWeight
         public int credTipLie = 6;       // credibility lost per PLANTED observation you tipped
@@ -36,6 +40,13 @@ namespace CaseDesk
         public string lastResult = "";
 
         void Awake() { I = this; }
+
+        public void ResetMeters()
+        {
+            susRed = susBlue = susOrg = startSuspicion;
+            credibility = startCredibility;
+            plantedTips = 0;
+        }
 
         int Clamp(int v) => Mathf.Clamp(v, 0, 100);
         int Sus(Party p) => p == Party.Red ? susRed : p == Party.Blue ? susBlue : p == Party.Organisation ? susOrg : 0;
