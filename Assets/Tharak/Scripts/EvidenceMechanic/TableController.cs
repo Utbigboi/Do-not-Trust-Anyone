@@ -95,7 +95,12 @@ namespace CaseDesk
                 bool focused = false;
                 if (!isDrag)
                 {
-                    if (dragging != null && dragging.OnWorkspace) { inspector?.Focus(dragging); focused = true; }
+                    if (dragging != null)
+                    {
+                        // click any piece -> bring it to the workspace and inspect it
+                        if (!dragging.OnWorkspace && workspace) workspace.Place(dragging);
+                        inspector?.Focus(dragging); focused = true;
+                    }
                     else if (pressedWorkspace && workspace && workspace.Current != null) { inspector?.Focus(workspace.Current); focused = true; }
                     else if (pressedClickable != null) pressedClickable.OnClick();
                 }
