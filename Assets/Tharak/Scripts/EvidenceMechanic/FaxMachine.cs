@@ -9,6 +9,7 @@ namespace CaseDesk
         {
             if (CallController.I == null || CallController.I.IsOpen) return;
             CallController.I.OpenLeak();
+            AudioManager.I?.Fax();
         }
     }
 }

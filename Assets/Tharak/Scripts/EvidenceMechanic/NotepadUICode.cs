@@ -34,6 +34,14 @@ namespace CaseDesk
         [Tooltip("Right inset for the button rows so they sit symmetrically.")]
         public int buttonRightInset = 20;
 
+        [Header("Note list spacing")]
+        [Tooltip("Equal gap between every clue in the notepad.")]
+        public float noteGap = 10f;
+        [Tooltip("Minimum height of each clue row (keeps gaps looking even even when text is short).")]
+        public float noteRowMinHeight = 44f;
+        [Tooltip("Extra top padding before the first note.")]
+        public int listTopPad = 6;
+
         [Header("Buttons")]
         public Color buttonColor = new Color(0.16f, 0.12f, 0.10f, 0.9f);
         public Color buttonTextColor = new Color(0.96f, 0.93f, 0.86f);
@@ -119,10 +127,9 @@ namespace CaseDesk
             if (cm == null || np == null) { if (root) root.SetActive(false); return; }
             var cc = CallController.I; var rm = RoundManager.I;
 
-            bool end = rm != null && rm.state != RoundManager.State.Playing;
             bool call = cc != null && cc.IsOpen;
             bool focused = inspector != null && inspector.IsFocused;
-            bool show = end || call || focused;
+            bool show = call || focused;
             root.SetActive(show);
             if (!show) return;
 
@@ -131,7 +138,7 @@ namespace CaseDesk
             var mode = cc != null ? cc.mode : CallController.Mode.None;
             bool tipMode = call && mode == CallController.Mode.Tip;
             bool leakMode = call && mode == CallController.Mode.Leak;
-            bool resultMode = end || (call && mode == CallController.Mode.Result);
+            bool resultMode = call && mode == CallController.Mode.Result;
 
             headerText.text = resultMode ? "THE EVENING GULL"
                             : tipMode ? "PHONE — tip the " + cc.tipFaction
@@ -143,8 +150,7 @@ namespace CaseDesk
             leakGroup.SetActive(leakMode);
             resultGroup.SetActive(resultMode);
 
-            if (end) resultText.text = (rm.state == RoundManager.State.Won ? "You made it out (for now).\n" : "You're finished.\n") + cm.lastResult;
-            else if (resultMode) resultText.text = cc.resultText;
+            if (resultMode) resultText.text = cc.resultText;
 
             bool selectable = tipMode || leakMode;
             foreach (var t in rowToggles) if (t) t.interactable = selectable;
@@ -159,7 +165,7 @@ namespace CaseDesk
             for (int i = 0; i < np.entries.Count; i++)
             {
                 var o = np.entries[i];
-                rowToggles.Add(MakeRow(content, "• " + o.text + "   (" + o.source + ")"));
+                rowToggles.Add(MakeRow(content, "• " + o.text + "   (" + o.source + ")", o.extraGapBelow));
             }
         }
 
@@ -262,44 +268,47 @@ namespace CaseDesk
             if (font) t.font = font;
         }
 
-        Toggle MakeRow(Transform parent, string text)
+        Toggle MakeRow(Transform parent, string text, float extraGap = 0f)
         {
-            // Row is a plain container; the label fills it with right padding reserved for the box.
+            // Horizontal flow: [text][checkbox] — the box sits right after the text ends.
             var rt = NewRect("Row", parent);
             rt.sizeDelta = new Vector2(0, rt.sizeDelta.y);
-            var le = rt.gameObject.AddComponent<LayoutElement>(); le.minHeight = 44;
+            var le = rt.gameObject.AddComponent<LayoutElement>(); le.minHeight = noteRowMinHeight;
             var fitter = rt.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            var rowVLG = rt.gameObject.AddComponent<VerticalLayoutGroup>();
-            rowVLG.padding = new RectOffset(0, (int)toggleSize + 14, 4, 4);   // reserve space on the right for the box
-            rowVLG.childControlWidth = rowVLG.childControlHeight = true;
-            rowVLG.childForceExpandWidth = true; rowVLG.childForceExpandHeight = false;
 
-            // label
+            var h = rt.gameObject.AddComponent<HorizontalLayoutGroup>();
+            h.padding = new RectOffset(0, 12, 4, 4 + Mathf.RoundToInt(extraGap));
+            h.spacing = 10;
+            h.childControlWidth = h.childControlHeight = true;
+            h.childForceExpandWidth = false; h.childForceExpandHeight = false;
+            h.childAlignment = TextAnchor.UpperLeft;
+
+            // label — sized to its text, wraps only when it would overflow the row width
             var lbRt = NewRect("Label", rt);
+            var lbLe = lbRt.gameObject.AddComponent<LayoutElement>(); lbLe.flexibleWidth = 0f;  // don't stretch; the box follows the text
             var t = lbRt.gameObject.AddComponent<TextMeshProUGUI>();
             t.text = text; t.fontSize = fontSize - 6; t.color = textColor;
-            t.alignment = TextAlignmentOptions.Left;
+            t.alignment = TextAlignmentOptions.TopLeft;
             t.textWrappingMode = TextWrappingModes.Normal;
+            t.overflowMode = TextOverflowModes.Overflow;
             if (font) t.font = font;
 
-            // checkbox pinned to the RIGHT edge of the row, vertically centred (not in the layout)
+            // checkbox — sits immediately AFTER the text (fixed size, top-aligned)
             var tgRt = NewRect("Toggle", rt);
-            tgRt.anchorMin = new Vector2(1f, 0.5f); tgRt.anchorMax = new Vector2(1f, 0.5f);
-            tgRt.pivot = new Vector2(1f, 0.5f);
-            tgRt.sizeDelta = new Vector2(toggleSize, toggleSize);
-            tgRt.anchoredPosition = new Vector2(-90f, 15.5f);
-            var leTg = tgRt.gameObject.AddComponent<LayoutElement>(); leTg.ignoreLayout = true;   // don't let the row layout move it
+            var tgLe = tgRt.gameObject.AddComponent<LayoutElement>();
+            tgLe.preferredWidth = toggleSize; tgLe.minWidth = toggleSize; tgLe.flexibleWidth = 0f;
+            tgLe.preferredHeight = toggleSize; tgLe.minHeight = toggleSize;
 
             var hit = tgRt.gameObject.AddComponent<Image>(); hit.color = new Color(0, 0, 0, 0);
             var toggle = tgRt.gameObject.AddComponent<Toggle>();
             toggle.isOn = false; toggle.transition = Selectable.Transition.None; toggle.targetGraphic = hit;
 
             float bw = toggleBorderWidth;
-            AddBar(tgRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, bw));   // top
-            AddBar(tgRt, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, bw));   // bottom
-            AddBar(tgRt, new Vector2(0, 0), new Vector2(0, 1), new Vector2(bw, 0));   // left
-            AddBar(tgRt, new Vector2(1, 0), new Vector2(1, 1), new Vector2(bw, 0));   // right
+            AddBar(tgRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, bw));
+            AddBar(tgRt, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, bw));
+            AddBar(tgRt, new Vector2(0, 0), new Vector2(0, 1), new Vector2(bw, 0));
+            AddBar(tgRt, new Vector2(1, 0), new Vector2(1, 1), new Vector2(bw, 0));
 
             var ckRt = NewRect("Check", tgRt); Stretch(ckRt); ckRt.sizeDelta = new Vector2(-(bw * 2f + 6f), -(bw * 2f + 6f));
             var ckImg = ckRt.gameObject.AddComponent<Image>(); ckImg.color = toggleCheckColor;
@@ -324,8 +333,8 @@ namespace CaseDesk
             contentRt.sizeDelta = new Vector2(0, contentRt.sizeDelta.y);       // width == viewport width
             contentRt.anchoredPosition = new Vector2(0, contentRt.anchoredPosition.y);
             var v = contentRt.gameObject.AddComponent<VerticalLayoutGroup>();
-            v.padding = new RectOffset(listLeftInset, 0, 0, 0);   // push notes right, off the spiral
-            v.spacing = 6; v.childControlWidth = v.childControlHeight = true; v.childForceExpandWidth = true; v.childForceExpandHeight = false;
+            v.padding = new RectOffset(listLeftInset, 0, listTopPad, 0);   // push notes right, off the spiral
+            v.spacing = noteGap; v.childControlWidth = v.childControlHeight = true; v.childForceExpandWidth = true; v.childForceExpandHeight = false;
             var fitter = contentRt.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 

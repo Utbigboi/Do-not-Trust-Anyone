@@ -15,5 +15,7 @@ namespace CaseDesk
         public Reliability reliability = Reliability.Solid;
         [Range(1, 3)] public int strength = 1;     // how damning it is
         public string source = "";                 // which evidence it came from
+        [System.NonSerialized] public bool tipped;   // can only be phoned in once
+        public float extraGapBelow;                  // per-clue spacing tweak (0 = use the list default)
     }
 }

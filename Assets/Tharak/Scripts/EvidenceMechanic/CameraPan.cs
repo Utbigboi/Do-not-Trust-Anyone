@@ -37,10 +37,14 @@ namespace CaseDesk
 
         void Awake() { if (!cam) cam = GetComponent<Camera>() ?? Camera.main; }
 
-        void Start()
+        void Start() { CaptureBase(); }
+
+        // Re-read the current camera rotation as the pan 'centre'. Call after the intro fly-in
+        // so the pan is anchored to the PLAY pose, not the menu angle.
+        public void CaptureBase()
         {
             var e = cam.transform.eulerAngles;
-            basePitch = e.x; baseYaw = e.y; yaw = 0f;
+            basePitch = e.x; baseYaw = e.y; yaw = 0f; vel = 0f; step = Step.Centre;
         }
 
         void Update()
@@ -80,9 +84,9 @@ namespace CaseDesk
         }
 
         void StepRight() { step = (Step)Mathf.Min((int)step + 1, 1); }
-        void StepLeft()  { step = (Step)Mathf.Max((int)step - 1, -1); }
+        void StepLeft() { step = (Step)Mathf.Max((int)step - 1, -1); }
 
         public void NudgeRight() => StepRight();
-        public void NudgeLeft()  => StepLeft();
+        public void NudgeLeft() => StepLeft();
     }
 }

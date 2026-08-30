@@ -62,7 +62,7 @@ namespace CaseDesk
             Quaternion camR1 = focusCameraPose ? focusCameraPose.rotation : cam.transform.rotation;
             Vector3 fwd = camR1 * Vector3.forward;
             Vector3 objP1 = camP1 + fwd * holdDistance;
-            Quaternion objR1 = Quaternion.LookRotation(-fwd, Vector3.up);
+            Quaternion objR1 = Quaternion.LookRotation(-fwd, Vector3.up) * Quaternion.Euler(e.inspectFaceEuler);
 
             if (routine != null) StopCoroutine(routine);
             routine = StartCoroutine(Move(camP1, camR1, e.transform, objP1, objR1));

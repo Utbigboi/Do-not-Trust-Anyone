@@ -17,6 +17,7 @@ namespace CaseDesk
         public CaseManager caseManager;
 
         [Header("Options")]
+        public bool autoStart = true;                 // set false when a menu drives the start
         public bool resetMetersEachRound = false;
         public float autoRowSpacing = 0.32f;
 
@@ -27,7 +28,17 @@ namespace CaseDesk
         readonly List<GameObject> spawned = new List<GameObject>();
 
         void Awake() { I = this; if (!caseManager) caseManager = FindFirstObjectByType<CaseManager>(); }
-        void Start() { index = 0; StartRound(0); }
+        void Start() { if (autoStart) StartGame(); }
+
+        public void StartGame() { state = State.Playing; index = 0; StartRound(0); }
+
+        void Update()
+        {
+            if (state != State.Playing || caseManager == null) return;
+            // lose immediately if credibility runs out or a GANG's suspicion maxes
+            if (caseManager.credibility <= 0 || caseManager.susRed >= 100 || caseManager.susBlue >= 100)
+                state = State.Lost;
+        }
 
         public void StartRound(int i)
         {
@@ -59,7 +70,7 @@ namespace CaseDesk
         // called by the fax after a leak resolves
         public void Advance()
         {
-            if (caseManager && caseManager.credibility <= 0) { state = State.Lost; return; }
+            if (caseManager && (caseManager.credibility <= 0 || caseManager.susRed >= 100 || caseManager.susBlue >= 100)) { state = State.Lost; return; }
             if (index + 1 >= rounds.Length) { state = State.Won; return; }
             StartRound(index + 1);
         }

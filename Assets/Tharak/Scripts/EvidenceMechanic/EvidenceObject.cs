@@ -18,6 +18,11 @@ namespace CaseDesk
         [Range(0f, 12f)] public float outlineWidth = 6f;
         public global::Outline.Mode outlineMode = global::Outline.Mode.OutlineVisible;
 
+        [Header("Inspect facing")]
+        [Tooltip("Extra rotation applied ONLY while inspecting, so the right face points at the camera. " +
+                 "If inspect shows the back, try Y=180; for a flat sheet try X=-90, etc.")]
+        public Vector3 inspectFaceEuler = Vector3.zero;
+
         [Header("Physics")]
         [Tooltip("Stop the piece tipping onto its side (it can still turn/yaw).")]
         public bool keepUpright = true;
@@ -42,6 +47,13 @@ namespace CaseDesk
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             if (keepUpright)
                 rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+
+            // A dynamic Rigidbody cannot use a non-convex MeshCollider -> force convex so physics is stable.
+            foreach (var mc in GetComponentsInChildren<MeshCollider>())
+                mc.convex = true;
+            // Warn (once) if there's no collider at all — nothing to rest on the table with.
+            if (GetComponentInChildren<Collider>() == null)
+                Debug.LogWarning($"EvidenceObject '{name}' has no Collider; add one (Box recommended) so it can rest and be grabbed.", this);
         }
 
         void OnEnable() { if (!All.Contains(this)) All.Add(this); }

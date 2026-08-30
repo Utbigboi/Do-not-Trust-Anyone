@@ -61,7 +61,8 @@ namespace CaseDesk
         // ---- Tipping: private nudge to a faction ----
         public void Tip(Observation o, Party toFaction)
         {
-            if (o == null) return;
+            if (o == null || o.tipped) return;   // each clue can only be tipped once
+            o.tipped = true;
             if (o.implicates != Party.None) AddSus(o.implicates, o.strength * tipWeight);
             if (o.reliability == Reliability.Planted) plantedTips++;   // debunked later -> credibility hit
             lastResult = "Tipped " + toFaction + ": " + o.text;

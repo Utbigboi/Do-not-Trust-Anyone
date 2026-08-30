@@ -75,7 +75,13 @@ namespace CaseDesk
                 {
                     isDrag = true;
                     if (dragging.OnWorkspace && workspace) workspace.Remove(dragging);
-                    if (dragRb) { dragRb.isKinematic = false; dragRb.useGravity = false; }
+                    if (dragRb)
+                    {
+                        dragRb.useGravity = false;
+                        dragRb.isKinematic = true;                 // kinematic drag = no tunneling / jitter
+                        dragRb.interpolation = RigidbodyInterpolation.Interpolate;
+                        dragTarget = dragRb.position;              // start from where it is
+                    }
                 }
                 if (isDrag)
                 {
@@ -85,6 +91,14 @@ namespace CaseDesk
                         Vector3 pt = ray.GetPoint(d) + grabOffset;
                         pt.y = targetHeight;
                         if (bounds) pt = bounds.Clamp(pt);
+                        // keep the piece's own collider bottom above the surface so it never dips into the table
+                        var col = dragging ? dragging.GetComponent<Collider>() : null;
+                        if (col != null)
+                        {
+                            float half = col.bounds.extents.y;
+                            float minY = SurfaceY + half + 0.005f;
+                            if (pt.y < minY) pt.y = minY;
+                        }
                         dragTarget = pt;
                     }
                 }
@@ -108,16 +122,17 @@ namespace CaseDesk
                 {
                     if (workspace && workspace.IsOver(dragging.transform.position))
                     {
-                        workspace.Place(dragging);   // locks it in the slot
+                        workspace.Place(dragging);   // locks it in the slot (stays kinematic there)
                     }
-                    else
+                    else if (dragRb != null)
                     {
-                        if (dragRb != null) dragRb.useGravity = true;   // drop
-                        dragging.SettleFlat();                          // lay it flat gently
+                        dragRb.isKinematic = false;                 // hand back to physics
+                        dragRb.linearVelocity = Vector3.zero;
+                        dragRb.angularVelocity = Vector3.zero;
+                        dragRb.useGravity = true;                   // drop & settle
+                        dragging.SettleFlat();
                     }
                 }
-                // safety: any still-free body gets gravity back
-                if (!focused && dragRb != null && !dragRb.isKinematic) dragRb.useGravity = true;
 
                 dragging = null; dragRb = null; isDrag = false; pressedWorkspace = false; pressedClickable = null;
             }
@@ -143,9 +158,11 @@ namespace CaseDesk
         {
             if (isDrag && dragRb != null)
             {
-                Vector3 to = dragTarget - dragRb.position;
-                dragRb.linearVelocity = Vector3.ClampMagnitude(to * followStrength, maxDragSpeed);
-                dragRb.angularVelocity *= 0.85f;
+                // move smoothly toward the target; MovePosition sweeps the collider so it
+                // won't punch through the table, regardless of the piece's collider type/size.
+                Vector3 next = Vector3.MoveTowards(dragRb.position, dragTarget, maxDragSpeed * Time.fixedDeltaTime);
+                next = Vector3.Lerp(dragRb.position, next, Mathf.Clamp01(followStrength * Time.fixedDeltaTime));
+                dragRb.MovePosition(next);
             }
         }
 
